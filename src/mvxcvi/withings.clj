@@ -19,17 +19,17 @@
 (defn init-oauth
   "Initializes an OAuth 1.0 token for approval by the user. This can then be
   used to perform API requests."
-  [access-key secret-key]
+  [consumer-access-key consumer-secret-key]
   (let [consumer (oauth/make-consumer
-                   access-key
-                   secret-key
-                   "https://oauth.withings.com/account/request_token"
-                   "https://oauth.withings.com/account/access_token"
-                   "https://oauth.withings.com/account/authorize"
+                   consumer-access-key
+                   consumer-secret-key
+                   (str default-oauth-url "/request_token")
+                   (str default-oauth-url "/access_token")
+                   (str default-oauth-url "/authorize")
                    :hmac-sha1)
         request-token (oauth/request-token consumer nil)] ; no callback URI
-    (println "Visit" (oauth/user-approval-uri consumer (:oauth_token request-token)) "to authorize the app")
     {:consumer consumer
+     :authz-url (oauth/user-approval-uri consumer (:oauth_token request-token))
      :access-token (oauth/access-token consumer request-token)}))
 
 
