@@ -18,6 +18,11 @@
     [client]
     "Retrieve information about the authenticated user.")
 
+  (get-activity
+    [client date]
+    [client from-date to-date]
+    "Get activity information on a specific day or between a range of days.")
+
   #_ ...)
 
 
@@ -90,18 +95,17 @@
   "Makes an authenticated request to the API."
   [client resource action params]
   (let [url (str (:api-url client) "/" resource)
-        params (assoc params
-                      :action action
-                      :userid (get-in client [:credentials :user_id]))
+        query (assoc params
+                     :action action
+                     :userid (get-in client [:credentials :user_id]))
 
-        oauth-params (oauth/credentials
-                       (get-in client [:credentials :consumer])
-                       (get-in client [:credentials :oauth_token])
-                       (get-in client [:credentials :oauth_token_secret])
-                       :GET url params)]
+        oauth (oauth/credentials
+                (get-in client [:credentials :consumer])
+                (get-in client [:credentials :oauth_token])
+                (get-in client [:credentials :oauth_token_secret])
+                :GET url query)]
     (http/get url
-      {:headers {"Authorization" (oauth/authorization-header oauth-params)}
-       :query-params params
+      {:query-params (merge query oauth)
        :as :json})))
 
 
@@ -116,6 +120,20 @@
       (if (= 200 (:status response))
         (update-in (:body response) [:status] #(status-codes % %))
         response)))
+
+
+  (get-activity
+    [this date]
+    (let [response (api-request this "measure" "getactivity" {:date date})]
+      (if (= 200 (:status response))
+        (update-in (:body response) [:status] #(status-codes % %))
+        response)))
+
+
+  (get-activity
+    [this from-date to-date]
+    ; ...
+    )
 
   #_ ...)
 
