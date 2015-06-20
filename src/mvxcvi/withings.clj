@@ -8,6 +8,20 @@
     [oauth.client :as oauth]))
 
 
+
+;; ## API Protocol
+
+(defprotocol Client
+  "Protocol for reading data from the Withings API."
+
+  (user-info
+    [client]
+    "Retrieve information about the authenticated user.")
+
+  #_ ...)
+
+
+
 ;; ## OAuth Credentials
 
 (def default-oauth-url
@@ -47,26 +61,52 @@
   after `request-access!` and the user authorization. Returns a map of
   credentials that can be serialized and used to authenticate API calls."
   [consumer temp-token]
-  {:consumer consumer
-   :access-token (oauth/access-token consumer temp-token)})
-
-
-#_
-(defn oauth-credentials
-  [consumer access-token method url params]
-  (oauth/credentials
-    consumer
-    (:oauth_token access-token)
-    (:oauth_token_secret access-token)
-    method ; e.g. :POST
-    url
-    params))
+  (assoc
+    (oauth/access-token consumer temp-token)
+    :consumer consumer))
 
 
 
-;; ## API Access
+;; ## HTTP Client
 
 (def default-api-url
   "https://wbsapi.withings.net/v2")
 
 
+(defn- api-request
+  "Makes an authenticated request to the API."
+  [client resource action params]
+  (let [url (str (:api-url client) "/" resource)
+        params (assoc params
+                      :action action
+                      :userid (get-in client [:credentials :user_id]))
+
+        oauth-params (oauth/credentials
+                       (get-in client [:credentials :consumer])
+                       (get-in client [:credentials :oauth_token])
+                       (get-in client [:credentials :oauth_token_secret])
+                       :GET url params)]
+    (http/get url
+      {:headers {"Authorization" (oauth/authorization-header oauth-params)}
+       :query-params params
+       :as :json})))
+
+
+(defrecord HTTPClient
+  [api-url credentials]
+
+  Client
+
+  (user-info
+    [this]
+    (api-request this "user" "getbyuserid" nil))
+
+  #_ ...)
+
+
+(defn http-client
+  "Constructs a new HTTP API client."
+  ([credentials]
+   (HTTPClient. default-api-url credentials))
+  ([api-url credentials]
+   (HTTPClient. api-url credentials)))
