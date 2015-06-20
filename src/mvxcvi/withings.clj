@@ -23,7 +23,17 @@
     [client from-date to-date]
     "Get activity information on a specific day or between a range of days.")
 
-  #_ ...)
+  (get-body-measurements
+    [client opts]
+    "Get body measurements.")
+
+  (get-sleep-summary
+    [client opts]
+    "Get sleep summary.")
+
+  (get-sleep-measures
+    [client opts]
+    "Get sleep measurements."))
 
 
 
@@ -72,6 +82,21 @@
 
 
 
+;; ## Data Conversion
+
+(defn- convert-user-info
+  [user-info]
+  (-> user-info
+      (update-in [:birthdate] #(java.util.Date. (* 1000 %)))
+      (update-in [:gender] {0 :male, 1 :female})))
+
+
+(defn- convert-activity
+  [activity]
+  activity)
+
+
+
 ;; ## HTTP Client
 
 (def default-api-url
@@ -112,7 +137,9 @@
                                 #(status-codes % %))]
           (if (= :success (:status result))
             (:body result)
-            result))
+            (throw (ex-info (str "Unsuccessful Withings response: "
+                                 (:status result))
+                            (dissoc result :body)))))
         (throw (ex-info (str "Unsuccessful Withings response: "
                              (:status response))
                         response))))))
@@ -125,18 +152,30 @@
 
   (user-info
     [this]
-    (api-request this "user" "getbyuserid" nil))
+    (->>
+      (api-request this "user" "getbyuserid" nil)
+      :users
+      (mapv convert-user-info)))
 
 
   (get-activity
     [this date]
-    (api-request this "measure" "getactivity" {:date date}))
+    (->>
+      {:date date}
+      (api-request this "measure" "getactivity")
+      (convert-activity)
+      (vector)))
 
 
   (get-activity
     [this from-date to-date]
-    (api-request this "measure" "getactivity" {:startdateymd from-date
-                                               :enddateymd to-date}))
+    (->>
+      {:startdateymd from-date
+       :enddateymd to-date}
+      (api-request this "measure" "getactivity")
+      :activities
+      (mapv convert-activity)))
+
 
   #_ ...)
 
