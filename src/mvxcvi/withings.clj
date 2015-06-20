@@ -80,15 +80,14 @@
 
 (def status-codes
   "Map of Withings 'status' response codes to descriptive keywords."
-  {   0 :success                 ; Operation was successful
-    247 :bad-userid              ; The userid provided is absent, or incorrect
-    250 :not-authorized          ; The provided userid and/or Oauth credentials do not match
-    342 :bad-oauth-sig           ; The signature  (using Oauth) is invalid
-    601 :too-many-requests       ; Too Many Request
+  {0    :success                 ; Operation was successful
+   247  :bad-userid              ; The userid provided is absent, or incorrect
+   250  :not-authorized          ; The provided userid and/or Oauth credentials do not match
+   342  :bad-oauth-sig           ; The signature  (using Oauth) is invalid
+   601  :too-many-requests       ; Too Many Request
    2554 :bad-action              ; Wrong action or wrong webservice
    2555 :unknown-error           ; An unknown error occurred
-   2556 :undefined-service       ; Service is not defined
-   })
+   2556 :undefined-service})     ; Service is not defined
 
 
 (defn- api-request
@@ -104,9 +103,19 @@
                 (get-in client [:credentials :oauth_token])
                 (get-in client [:credentials :oauth_token_secret])
                 :GET url query)]
-    (http/get url
-      {:query-params (merge query oauth)
-       :as :json})))
+    (let [response (http/get url
+                     {:query-params (merge query oauth)
+                      :as :json})]
+      (if (= 200 (:status response))
+        (let [result (update-in (:body response)
+                                [:status]
+                                #(status-codes % %))]
+          (if (= :success (:status result))
+            (:body result)
+            result))
+        (throw (ex-info (str "Unsuccessful Withings response: "
+                             (:status response))
+                        response))))))
 
 
 (defrecord HTTPClient
@@ -116,24 +125,18 @@
 
   (user-info
     [this]
-    (let [response (api-request this "user" "getbyuserid" nil)]
-      (if (= 200 (:status response))
-        (update-in (:body response) [:status] #(status-codes % %))
-        response)))
+    (api-request this "user" "getbyuserid" nil))
 
 
   (get-activity
     [this date]
-    (let [response (api-request this "measure" "getactivity" {:date date})]
-      (if (= 200 (:status response))
-        (update-in (:body response) [:status] #(status-codes % %))
-        response)))
+    (api-request this "measure" "getactivity" {:date date}))
 
 
   (get-activity
     [this from-date to-date]
-    ; ...
-    )
+    (api-request this "measure" "getactivity" {:startdateymd from-date
+                                               :enddateymd to-date}))
 
   #_ ...)
 
