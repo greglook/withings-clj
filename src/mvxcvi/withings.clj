@@ -18,22 +18,27 @@
     [client]
     "Retrieve information about the authenticated user.")
 
-  (get-activity
-    [client date]
-    [client from-date to-date]
-    "Get activity information on a specific day or between a range of days.")
-
-  (get-body-measurements
+  (body-measurements
     [client opts]
     "Get body measurements.")
 
-  (get-sleep-summary
+  (activity-summary
+    [client date]
+    [client from-date to-date]
+    "Get daily summaries of activity information on a specific day or between a
+    range of days.")
+
+  (activity-data
     [client opts]
+    "Gets detailed time-series activity data.")
+
+  (sleep-summary
+    [client from-date to-date]
     "Get sleep summary.")
 
-  (get-sleep-measures
+  (sleep-data
     [client opts]
-    "Get sleep measurements."))
+    "Get detailed sleep measurements."))
 
 
 
@@ -82,22 +87,7 @@
 
 
 
-;; ## Data Conversion
-
-(defn- convert-user-info
-  [user-info]
-  (-> user-info
-      (update-in [:birthdate] #(java.util.Date. (* 1000 %)))
-      (update-in [:gender] {0 :male, 1 :female})))
-
-
-(defn- convert-activity
-  [activity]
-  activity)
-
-
-
-;; ## HTTP Client
+;; ## HTTP API Requests
 
 (def default-api-url
   "https://wbsapi.withings.net/v2")
@@ -145,6 +135,24 @@
                         response))))))
 
 
+
+;; ## Data Conversion
+
+(defn- convert-user-info
+  [user-info]
+  (-> user-info
+      (update-in [:birthdate] #(java.util.Date. (* 1000 %)))
+      (update-in [:gender] {0 :male, 1 :female})))
+
+
+(defn- convert-activity
+  [activity]
+  activity)
+
+
+
+;; ## HTTP Client Component
+
 (defrecord HTTPClient
   [api-url credentials]
 
@@ -158,7 +166,12 @@
       (mapv convert-user-info)))
 
 
-  (get-activity
+  (body-measurements
+    [this opts]
+    (api-request this "measure" "getmeas" opts))
+
+
+  (activity-summary
     [this date]
     (->>
       {:date date}
@@ -167,7 +180,7 @@
       (vector)))
 
 
-  (get-activity
+  (activity-summary
     [this from-date to-date]
     (->>
       {:startdateymd from-date
@@ -177,7 +190,19 @@
       (mapv convert-activity)))
 
 
-  #_ ...)
+  ; TODO: activity-data
+
+
+  (sleep-summary
+    [this from-date to-date]
+    (api-request this "sleep" "getsummary"
+                 {:startdateymd from-date
+                  :enddateymd to-date}))
+
+
+  (sleep-data
+    [this opts]
+    (api-request this "sleep" "get" opts)))
 
 
 (defn http-client
