@@ -37,7 +37,7 @@
     "Get sleep summary.")
 
   (sleep-data
-    [client opts]
+    [client from-inst to-inst]
     "Get detailed sleep measurements."))
 
 
@@ -138,16 +138,33 @@
 
 ;; ## Data Conversion
 
+(defn- epoch->inst
+  "Converts a Unix epoch timestamp into an inst."
+  [epoch]
+  (java.util.Date. (* 1000 epoch)))
+
+
 (defn- convert-user-info
-  [user-info]
-  (-> user-info
-      (update-in [:birthdate] #(java.util.Date. (* 1000 %)))
+  [data]
+  (-> data
+      (update-in [:birthdate] epoch->inst)
       (update-in [:gender] {0 :male, 1 :female})))
 
 
-(defn- convert-activity
-  [activity]
-  activity)
+(defn- convert-activity-summary
+  [data]
+  data)
+
+
+(defn- convert-sleep-data
+  [data]
+  (-> data
+      (update-in [:startdate] epoch->inst)
+      (update-in [:enddate] epoch->inst)
+      (update-in [:state] {0 :awake
+                           1 :light
+                           2 :deep
+                           3 :REM})))
 
 
 
@@ -190,7 +207,10 @@
       (mapv convert-activity)))
 
 
-  ; TODO: activity-data
+  ; FIXME: untested, need to sign up for API.
+  (activity-data
+    [this opts]
+    (api-request this "measure" "getintradayactivity"))
 
 
   (sleep-summary
@@ -201,8 +221,13 @@
 
 
   (sleep-data
-    [this opts]
-    (api-request this "sleep" "get" opts)))
+    [this from-inst to-inst]
+    (-> (api-request this "sleep" "get"
+                     {:startdate from-inst
+                      :enddate to-inst})
+        (update-in [:model] {16 :pulse
+                             32 :aura})
+        (update-in [:series] (partial mapv convert-sleep-data)))))
 
 
 (defn http-client
