@@ -23,7 +23,7 @@
 
 
 (def oauth-creds
-  (read-string (slurp "creds.edn")))
+  (read-string (slurp "oauth-creds.edn")))
 
 
 (def client
