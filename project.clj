@@ -9,5 +9,7 @@
   :dependencies
   [[clj-http "1.1.2"]
    [clj-oauth "1.5.2"]
+   [clj-time "0.9.0"]
+   [me.arrdem/meajure "2.0.0"]
    [org.clojure/clojure "1.7.0-RC1"]
    [org.clojure/tools.logging "0.3.1"]])

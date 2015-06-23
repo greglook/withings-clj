@@ -5,6 +5,7 @@
   (:require
     [clj-http.client :as http]
     [clojure.tools.logging :as log]
+    [meajure.core :as meajure]
     [oauth.client :as oauth]))
 
 
@@ -182,7 +183,22 @@
 
 (defn- convert-activity-summary
   [data]
-  data)
+  (-> data
+      (update-in [:distance] meajure/make-unit :meter 1)
+      (update-in [:elevation] meajure/make-unit :meter 1)
+      (update-in [:intense] meajure/make-unit :second 1)
+      (update-in [:moderate] meajure/make-unit :second 1)
+      (update-in [:soft] meajure/make-unit :second 1)))
+
+
+(defn- convert-sleep-summary
+  [data]
+  ; TODO: account for :timezone here
+  (-> data
+      (update-in [:model] device-models)
+      (update-in [:startdate] epoch->inst)
+      (update-in [:enddate] epoch->inst)
+      (update-in [:modified] epoch->inst)))
 
 
 (defn- convert-sleep-data
@@ -241,9 +257,10 @@
 
   (sleep-summary
     [this from-date to-date]
-    (api-request this "sleep" "getsummary"
-                 {:startdateymd from-date
-                  :enddateymd to-date}))
+    (-> (api-request this "sleep" "getsummary"
+                     {:startdateymd from-date
+                      :enddateymd to-date})
+        (update-in [:series] (partial mapv convert-sleep-summary))))
 
 
   (sleep-data
