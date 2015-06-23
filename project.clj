@@ -12,4 +12,7 @@
    [clj-time "0.9.0"]
    [me.arrdem/meajure "2.0.0"]
    [org.clojure/clojure "1.7.0-RC1"]
-   [org.clojure/tools.logging "0.3.1"]])
+   [org.clojure/tools.logging "0.3.1"]]
+
+  :profiles
+  {:repl {:source-paths ["dev"]}})
