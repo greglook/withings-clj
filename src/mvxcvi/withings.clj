@@ -81,9 +81,13 @@
   after `request-access!` and the user authorization. Returns a map of
   credentials that can be serialized and used to authenticate API calls."
   [consumer temp-token]
-  (assoc
-    (oauth/access-token consumer temp-token)
-    :consumer consumer))
+  (let [tokens (oauth/access-token consumer temp-token)]
+    (assoc
+      (dissoc tokens :oauth_token :oauth_token_secret :user_id)
+      :consumer consumer
+      :oauth-token (:oauth_token tokens)
+      :oauth-token-secret (:oauth_token_secret tokens)
+      :user-id (:user_id tokens))))
 
 
 
@@ -99,6 +103,7 @@
    247  :bad-userid              ; The userid provided is absent, or incorrect
    250  :not-authorized          ; The provided userid and/or Oauth credentials do not match
    342  :bad-oauth-sig           ; The signature  (using Oauth) is invalid
+   503  :invalid-params          ; Action parameters are incorrect
    601  :too-many-requests       ; Too Many Request
    2554 :bad-action              ; Wrong action or wrong webservice
    2555 :unknown-error           ; An unknown error occurred
@@ -111,12 +116,12 @@
   (let [url (str (:api-url client) "/" resource)
         query (assoc params
                      :action action
-                     :userid (get-in client [:credentials :user_id]))
+                     :userid (get-in client [:credentials :user-id]))
 
         oauth (oauth/credentials
                 (get-in client [:credentials :consumer])
-                (get-in client [:credentials :oauth_token])
-                (get-in client [:credentials :oauth_token_secret])
+                (get-in client [:credentials :oauth-token])
+                (get-in client [:credentials :oauth-token-secret])
                 :GET url query)]
     (let [response (http/get url
                      {:query-params (merge query oauth)
@@ -128,7 +133,8 @@
           (if (= :success (:status result))
             (:body result)
             (throw (ex-info (str "Unsuccessful Withings response: "
-                                 (:status result))
+                                 (:status result) " - "
+                                 (:error result "--"))
                             (dissoc result :body)))))
         (throw (ex-info (str "Unsuccessful Withings response: "
                              (:status response))
@@ -193,7 +199,7 @@
     (->>
       {:date date}
       (api-request this "measure" "getactivity")
-      (convert-activity)
+      (convert-activity-summary)
       (vector)))
 
 
@@ -204,13 +210,13 @@
        :enddateymd to-date}
       (api-request this "measure" "getactivity")
       :activities
-      (mapv convert-activity)))
+      (mapv convert-activity-summary)))
 
 
   ; FIXME: untested, need to sign up for API.
   (activity-data
     [this opts]
-    (api-request this "measure" "getintradayactivity"))
+    (api-request this "measure" "getintradayactivity" opts))
 
 
   (sleep-summary
