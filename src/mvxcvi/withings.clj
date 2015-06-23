@@ -144,6 +144,29 @@
 
 ;; ## Data Conversion
 
+(def genders
+  "Enumeration of gender codes to keyword names."
+  {0 :male
+   1 :female})
+
+
+(def device-models
+  "Enumeration of device model codes to keyword names."
+  { 0 :user
+    1 :body-scale
+    4 :blood-pressure-monitor
+   16 :pulse
+   32 :aura})
+
+
+(def sleep-states
+  "Enumeration of sleep state codes to keyword names."
+  {0 :awake
+   1 :light
+   2 :deep
+   3 :REM})
+
+
 (defn- epoch->inst
   "Converts a Unix epoch timestamp into an inst."
   [epoch]
@@ -154,7 +177,7 @@
   [data]
   (-> data
       (update-in [:birthdate] epoch->inst)
-      (update-in [:gender] {0 :male, 1 :female})))
+      (update-in [:gender] genders)))
 
 
 (defn- convert-activity-summary
@@ -167,10 +190,7 @@
   (-> data
       (update-in [:startdate] epoch->inst)
       (update-in [:enddate] epoch->inst)
-      (update-in [:state] {0 :awake
-                           1 :light
-                           2 :deep
-                           3 :REM})))
+      (update-in [:state] sleep-states)))
 
 
 
@@ -231,8 +251,7 @@
     (-> (api-request this "sleep" "get"
                      {:startdate from-inst
                       :enddate to-inst})
-        (update-in [:model] {16 :pulse
-                             32 :aura})
+        (update-in [:model] device-models)
         (update-in [:series] (partial mapv convert-sleep-data)))))
 
 
