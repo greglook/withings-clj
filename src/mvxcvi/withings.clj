@@ -4,6 +4,8 @@
   See: http://oauth.withings.com/api"
   (:require
     [clj-http.client :as http]
+    [clj-time.coerce :as coerce-time]
+    [clj-time.core :as time]
     [clojure.tools.logging :as log]
     [meajure.core :as meajure]
     [oauth.client :as oauth]))
@@ -169,44 +171,60 @@
 
 
 (defn- epoch->inst
-  "Converts a Unix epoch timestamp into an inst."
-  [epoch]
-  (java.util.Date. (* 1000 epoch)))
+  "Converts a Unix epoch timestamp (in seconds) into an inst."
+  ([epoch]
+   (coerce-time/from-long (* epoch 1000)))
+  ([epoch tz]
+   (time/to-time-zone (coerce-time/from-long (* epoch 1000)) tz)))
+
+
+(defn- update-fields
+  [data & fields]
+  (reduce (fn [acc [k f]]
+            (apply update-in acc [k] f))
+          data (partition 2 fields)))
 
 
 (defn- convert-user-info
   [data]
-  (-> data
-      (update-in [:birthdate] epoch->inst)
-      (update-in [:gender] genders)))
+  (update-fields data
+    :birthdate [epoch->inst]
+    :gender    [genders]))
 
 
 (defn- convert-activity-summary
   [data]
-  (-> data
-      (update-in [:distance] meajure/make-unit :meter 1)
-      (update-in [:elevation] meajure/make-unit :meter 1)
-      (update-in [:intense] meajure/make-unit :second 1)
-      (update-in [:moderate] meajure/make-unit :second 1)
-      (update-in [:soft] meajure/make-unit :second 1)))
+  (update-fields data
+    :timezone  [time/time-zone-for-id]
+    :distance  [meajure/make-unit :meter  1]
+    :elevation [meajure/make-unit :meter  1]
+    :intense   [meajure/make-unit :second 1]
+    :moderate  [meajure/make-unit :second 1]
+    :soft      [meajure/make-unit :second 1]))
 
 
 (defn- convert-sleep-summary
   [data]
   ; TODO: account for :timezone here
-  (-> data
-      (update-in [:model] device-models)
-      (update-in [:startdate] epoch->inst)
-      (update-in [:enddate] epoch->inst)
-      (update-in [:modified] epoch->inst)))
+  (let [tz (time/time-zone-for-id (:timezone data))]
+    (update-fields (dissoc data :timezone)
+      :model     [device-models]
+      :startdate [epoch->inst tz]
+      :enddate   [epoch->inst tz]
+      :modified  [epoch->inst tz]
+      :data      [update-fields
+                  :durationtosleep    [meajure/make-unit :second 1]
+                  :lightsleepduration [meajure/make-unit :second 1]
+                  :deepsleepduration  [meajure/make-unit :second 1]
+                  :wakeupduration     [meajure/make-unit :second 1]])))
 
 
 (defn- convert-sleep-data
   [data]
-  (-> data
-      (update-in [:startdate] epoch->inst)
-      (update-in [:enddate] epoch->inst)
-      (update-in [:state] sleep-states)))
+  (update-fields data
+    :startdate [epoch->inst]
+    :enddate   [epoch->inst]
+    :state     [sleep-states]))
 
 
 
