@@ -22,25 +22,58 @@
 
   (body-measurements
     [client opts]
-    "Get body measurements.")
+    "Get body measurements.
+
+    Args (all optional):
+    :startdate      Time in unix epoch seconds.
+    :enddate        Time in unix epoch seconds.
+    :lastupdate     Time in unix epoch seconds.
+    :meastype       Measurement type (keyword -> code)
+    :category       1 for real measurements, 2 for user objectives
+    :limit          Restrict results returned.
+    :offset         Offset into results returned.
+    ")
 
   (activity-summary
     [client date]
-    [client from-date to-date]
+    [client start-date end-date]
     "Get daily summaries of activity information on a specific day or between a
-    range of days.")
+    range of days.
+
+    Args (all optional):
+    :date           Date in YYYY-mm-dd format.
+    :startdateymd   Date in YYYY-mm-dd format.
+    :enddateymd     Date in YYYY-mm-dd format.
+    ")
 
   (activity-data
-    [client opts]
-    "Gets detailed time-series activity data.")
+    [client start-date end-date]
+    "Gets detailed time-series activity data.
+
+    Args:
+    :startdate      Time in unix epoch seconds.
+    :enddate        Time in unix epoch seconds.
+    ")
 
   (sleep-summary
-    [client from-date to-date]
-    "Get sleep summary.")
+    [client start-date end-date]
+    "Get sleep summary data.
+
+    Args:
+    :startdate      Time in unix epoch seconds.
+    :enddate        Time in unix epoch seconds.
+    ")
 
   (sleep-data
-    [client from-inst to-inst]
-    "Get detailed sleep measurements."))
+    [client last-update]
+    [client start-date end-date]
+    "Get detailed sleep measurements.
+
+    Args (either from/to or lastupdate required):
+    :startdateymd   Date in YYYY-mm-dd format.
+    :enddateymd     Date in YYYY-mm-dd format.
+    :lastupdate     Date in YYYY-mm-dd format.
+    "))
 
 
 
@@ -80,6 +113,12 @@
     4 :blood-pressure-monitor
    16 :pulse
    32 :aura})
+
+
+(def measurement-categories
+  "Enumeration of measurement category codes to keyword names."
+  {1 :real
+   2 :goal})
 
 
 (def measurement-types
@@ -142,7 +181,6 @@
 
 (defn- convert-sleep-summary
   [data]
-  ; TODO: account for :timezone here
   (let [tz (time/time-zone-for-id (:timezone data))]
     (update-fields (dissoc data :timezone)
       :model     [device-models]
