@@ -321,8 +321,10 @@
 
   ; FIXME: untested, need to sign up for API.
   (activity-data
-    [this opts]
-    (api-request this "v2/measure" "getintradayactivity" opts))
+    [this start-date end-date]
+    (api-request this "v2/measure" "getintradayactivity"
+                 {:startdate start-date
+                  :enddate end-date}))
 
 
   (sleep-summary
@@ -331,6 +333,14 @@
                      {:startdateymd from-date
                       :enddateymd to-date})
         (update-in [:series] (partial mapv convert-sleep-summary))))
+
+
+  (sleep-data
+    [this last-update]
+    (-> (api-request this "v2/sleep" "get"
+                     {:lastupdate last-update})
+        (update-in [:model] device-models)
+        (update-in [:series] (partial mapv convert-sleep-data))))
 
 
   (sleep-data
