@@ -11,7 +11,6 @@
     [oauth.client :as oauth]))
 
 
-
 ;; ## API Protocol
 
 (defprotocol Client
@@ -45,59 +44,14 @@
 
 
 
-;; ## OAuth Credentials
+; ## Constants & Enumerations
 
 (def default-oauth-url
   "https://oauth.withings.com/account")
 
 
-(defn oauth-consumer
-  "Constructs a new OAuth 1.0 consumer using the given access and secret key."
-  ([consumer-key consumer-secret]
-   (oauth-consumer consumer-key consumer-secret default-oauth-url))
-  ([consumer-key consumer-secret oauth-url]
-   (oauth/make-consumer
-     consumer-key
-     consumer-secret
-     (str oauth-url "/request_token")
-     (str oauth-url "/access_token")
-     (str oauth-url "/authorize")
-     :hmac-sha1)))
-
-
-(defn request-access!
-  "POSTs to the request-token endpoint to retrieve a temporary token credential
-  for the end-user to authorize. Returns a map containing the temporary token
-  and a URL for the user to visit to authorize the consumer's access."
-  ([consumer]
-   (request-access! consumer nil))
-  ([consumer callback-url]
-   (let [temp-token (oauth/request-token consumer callback-url)
-         authz-url (oauth/user-approval-uri consumer (:oauth_token temp-token))]
-     {:temp-token temp-token
-      :authz-url authz-url})))
-
-
-(defn authorize-credentials!
-  "POSTs to the access-token endpoint to trade the authorized temporary token
-  credential for a long-term access token credential. This should be called
-  after `request-access!` and the user authorization. Returns a map of
-  credentials that can be serialized and used to authenticate API calls."
-  [consumer temp-token]
-  (let [tokens (oauth/access-token consumer temp-token)]
-    (assoc
-      (dissoc tokens :oauth_token :oauth_token_secret :user_id)
-      :consumer consumer
-      :oauth-token (:oauth_token tokens)
-      :oauth-token-secret (:oauth_token_secret tokens)
-      :user-id (:user_id tokens))))
-
-
-
-;; ## HTTP API Requests
-
 (def default-api-url
-  "https://wbsapi.withings.net/v2")
+  "https://wbsapi.withings.net")
 
 
 (def status-codes
@@ -112,40 +66,6 @@
    2555 :unknown-error           ; An unknown error occurred
    2556 :undefined-service})     ; Service is not defined
 
-
-(defn- api-request
-  "Makes an authenticated request to the API."
-  [client resource action params]
-  (let [url (str (:api-url client) "/" resource)
-        query (assoc params
-                     :action action
-                     :userid (get-in client [:credentials :user-id]))
-
-        oauth (oauth/credentials
-                (get-in client [:credentials :consumer])
-                (get-in client [:credentials :oauth-token])
-                (get-in client [:credentials :oauth-token-secret])
-                :GET url query)]
-    (let [response (http/get url
-                     {:query-params (merge query oauth)
-                      :as :json})]
-      (if (= 200 (:status response))
-        (let [result (update-in (:body response)
-                                [:status]
-                                #(status-codes % %))]
-          (if (= :success (:status result))
-            (:body result)
-            (throw (ex-info (str "Unsuccessful Withings response: "
-                                 (:status result) " - "
-                                 (:error result "--"))
-                            (dissoc result :body)))))
-        (throw (ex-info (str "Unsuccessful Withings response: "
-                             (:status response))
-                        response))))))
-
-
-
-;; ## Data Conversion
 
 (def genders
   "Enumeration of gender codes to keyword names."
@@ -162,6 +82,20 @@
    32 :aura})
 
 
+(def measurement-types
+  "Enumeration of measurement type codes to a tuple of the keyword name and
+  measurement units."
+  { 1 [:weight :kg]
+    4 [:height :m]
+    5 [:lean-mass :kg]
+    6 [:fat-ratio :percent]
+    8 [:fat-mass :kg]
+    9 [:blood-pressure-diastolic :mmHg]
+   10 [:blood-pressure-systolic  :mmHg]
+   11 [:heart-rate :bpm]
+   54 [:SpO2 :percent]})
+
+
 (def sleep-states
   "Enumeration of sleep state codes to keyword names."
   {0 :awake
@@ -169,6 +103,9 @@
    2 :deep
    3 :REM})
 
+
+
+;; ## Data Conversion
 
 (defn- epoch->inst
   "Converts a Unix epoch timestamp (in seconds) into an inst."
@@ -228,6 +165,83 @@
 
 
 
+;; ## OAuth Functions
+
+(defn oauth-consumer
+  "Constructs a new OAuth 1.0 consumer using the given access and secret key."
+  ([consumer-key consumer-secret]
+   (oauth-consumer consumer-key consumer-secret default-oauth-url))
+  ([consumer-key consumer-secret oauth-url]
+   (oauth/make-consumer
+     consumer-key
+     consumer-secret
+     (str oauth-url "/request_token")
+     (str oauth-url "/access_token")
+     (str oauth-url "/authorize")
+     :hmac-sha1)))
+
+
+(defn request-access!
+  "POSTs to the request-token endpoint to retrieve a temporary token credential
+  for the end-user to authorize. Returns a map containing the temporary token
+  and a URL for the user to visit to authorize the consumer's access."
+  ([consumer]
+   (request-access! consumer nil))
+  ([consumer callback-url]
+   (let [temp-token (oauth/request-token consumer callback-url)
+         authz-url (oauth/user-approval-uri consumer (:oauth_token temp-token))]
+     {:temp-token temp-token
+      :authz-url authz-url})))
+
+
+(defn authorize-credentials!
+  "POSTs to the access-token endpoint to trade the authorized temporary token
+  credential for a long-term access token credential. This should be called
+  after `request-access!` and the user authorization. Returns a map of
+  credentials that can be serialized and used to authenticate API calls."
+  [consumer temp-token]
+  (let [tokens (oauth/access-token consumer temp-token)]
+    (assoc
+      (dissoc tokens :oauth_token :oauth_token_secret :user_id)
+      :consumer consumer
+      :oauth-token (:oauth_token tokens)
+      :oauth-token-secret (:oauth_token_secret tokens)
+      :user-id (:user_id tokens))))
+
+
+(defn- api-request
+  "Makes an authenticated request to the API."
+  [client resource action params]
+  (let [url (str (:api-url client) "/" resource)
+        query (assoc params
+                     :action action
+                     :userid (get-in client [:credentials :user-id]))
+
+        oauth (oauth/credentials
+                (get-in client [:credentials :consumer])
+                (get-in client [:credentials :oauth-token])
+                (get-in client [:credentials :oauth-token-secret])
+                :GET url query)]
+    (let [response (http/get url
+                     {:query-params (merge query oauth)
+                      :debug true
+                      :as :json})]
+      (if (= 200 (:status response))
+        (let [result (update-in (:body response)
+                                [:status]
+                                #(status-codes % %))]
+          (if (= :success (:status result))
+            (:body result)
+            (throw (ex-info (str "Unsuccessful Withings response: "
+                                 (:status result) " - "
+                                 (:error result "--"))
+                            (dissoc result :body)))))
+        (throw (ex-info (str "Unsuccessful Withings response: "
+                             (:status response))
+                        response))))))
+
+
+
 ;; ## HTTP Client Component
 
 (defrecord HTTPClient
@@ -238,7 +252,7 @@
   (user-info
     [this]
     (->>
-      (api-request this "user" "getbyuserid" nil)
+      (api-request this "v2/user" "getbyuserid" nil)
       :users
       (mapv convert-user-info)))
 
@@ -252,7 +266,7 @@
     [this date]
     (->>
       {:date date}
-      (api-request this "measure" "getactivity")
+      (api-request this "v2/measure" "getactivity")
       (convert-activity-summary)
       (vector)))
 
@@ -262,7 +276,7 @@
     (->>
       {:startdateymd from-date
        :enddateymd to-date}
-      (api-request this "measure" "getactivity")
+      (api-request this "v2/measure" "getactivity")
       :activities
       (mapv convert-activity-summary)))
 
@@ -270,12 +284,12 @@
   ; FIXME: untested, need to sign up for API.
   (activity-data
     [this opts]
-    (api-request this "measure" "getintradayactivity" opts))
+    (api-request this "v2/measure" "getintradayactivity" opts))
 
 
   (sleep-summary
     [this from-date to-date]
-    (-> (api-request this "sleep" "getsummary"
+    (-> (api-request this "v2/sleep" "getsummary"
                      {:startdateymd from-date
                       :enddateymd to-date})
         (update-in [:series] (partial mapv convert-sleep-summary))))
@@ -283,7 +297,7 @@
 
   (sleep-data
     [this from-inst to-inst]
-    (-> (api-request this "sleep" "get"
+    (-> (api-request this "v2/sleep" "get"
                      {:startdate from-inst
                       :enddate to-inst})
         (update-in [:model] device-models)
