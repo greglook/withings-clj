@@ -4,8 +4,10 @@
   See: http://oauth.withings.com/api"
   (:require
     [clj-http.client :as http]
-    [clj-time.coerce :as coerce-time]
-    [clj-time.core :as time]
+    (clj-time
+      [coerce :as coerce-time]
+      [core :as time]
+      [format :as format-time])
     [clojure.tools.logging :as log]
     [meajure.core :as meajure]
     [oauth.client :as oauth]))
@@ -120,6 +122,14 @@
 
 
 ;; ## Data Conversion
+
+(defn- inst->ymd
+  "Converts a datetime instant into a year-month-day string."
+  [inst]
+  (-> :year-month-day
+      (format-time/formatters)
+      (format-time/unparse inst)))
+
 
 (defn- epoch->inst
   "Converts a Unix epoch timestamp (in seconds) into an inst."
@@ -264,12 +274,18 @@
 
   (user-info
     [this]
-    (->>
-      (api-request this "v2/user" "getbyuserid" nil)
-      :users
-      (mapv convert-user-info)))
+    (->> (api-request this "v2/user" "getbyuserid" nil)
+         (:users)
+         (mapv convert-user-info)))
 
 
+  ; :startdate      Time in unix epoch seconds.
+  ; :enddate        Time in unix epoch seconds.
+  ; :lastupdate     Time in unix epoch seconds.
+  ; :meastype       Measurement type (keyword -> code)
+  ; :category       1 for real measurements, 2 for user objectives
+  ; :limit          Restrict results returned.
+  ; :offset         Offset into results returned.
   (body-measurements
     [this opts]
     (api-request this "measure" "getmeas" opts))
@@ -277,52 +293,54 @@
 
   (activity-summary
     [this date]
-    (->>
-      {:date date}
-      (api-request this "v2/measure" "getactivity")
-      (convert-activity-summary)
-      (vector)))
+    (-> (api-request
+          this "v2/measure" "getactivity"
+          {:date (inst->ymd date)})
+        (convert-activity-summary)))
 
 
   (activity-summary
     [this start-date end-date]
-    (->>
-      {:startdateymd start-date
-       :enddateymd end-date}
-      (api-request this "v2/measure" "getactivity")
-      :activities
-      (mapv convert-activity-summary)))
+    (-> (api-request
+          this "v2/measure" "getactivity"
+          {:startdateymd (inst->ymd start-date)
+           :enddateymd (inst->ymd end-date)})
+        (update-in [:activities] (partial mapv convert-activity-summary))))
 
 
   ; FIXME: untested, need to sign up for API.
   (activity-data
     [this after before]
-    (api-request this "v2/measure" "getintradayactivity"
-                 {:startdate after
-                  :enddate before}))
+    (api-request
+      this "v2/measure" "getintradayactivity"
+      {:startdate (coerce-time/to-epoch after)
+       :enddate (coerce-time/to-epoch before)}))
 
 
   (sleep-summary
     [this start-date end-date]
-    (-> (api-request this "v2/sleep" "getsummary"
-                     {:startdateymd start-date
-                      :enddateymd end-date})
+    (-> (api-request
+          this "v2/sleep" "getsummary"
+          {:startdateymd (coerce-time/to-epoch start-date)
+             :enddateymd (coerce-time/to-epoch end-date)})
         (update-in [:series] (partial mapv convert-sleep-summary))))
 
 
   (sleep-data
     [this updated-since]
-    (-> (api-request this "v2/sleep" "get"
-                     {:lastupdate updated-since})
+    (-> (api-request
+          this "v2/sleep" "get"
+          {:lastupdate (inst->ymd updated-since)})
         (update-in [:model] device-models)
         (update-in [:series] (partial mapv convert-sleep-data))))
 
 
   (sleep-data
     [this start-date end-date]
-    (-> (api-request this "v2/sleep" "get"
-                     {:startdate start-date
-                      :enddate end-date})
+    (-> (api-request
+          this "v2/sleep" "get"
+          {:startdate (inst->ymd start-date)
+           :enddate (inst->ymd end-date)})
         (update-in [:model] device-models)
         (update-in [:series] (partial mapv convert-sleep-data)))))
 
