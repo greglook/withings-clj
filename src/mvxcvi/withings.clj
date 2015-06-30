@@ -11,74 +11,6 @@
     [oauth.client :as oauth]))
 
 
-;; ## API Protocol
-
-(defprotocol Client
-  "Protocol for reading data from the Withings API."
-
-  (user-info
-    [client]
-    "Retrieve information about the authenticated user.")
-
-  (body-measurements
-    [client opts]
-    "Get body measurements.
-
-    Args (all optional):
-    :startdate      Time in unix epoch seconds.
-    :enddate        Time in unix epoch seconds.
-    :lastupdate     Time in unix epoch seconds.
-    :meastype       Measurement type (keyword -> code)
-    :category       1 for real measurements, 2 for user objectives
-    :limit          Restrict results returned.
-    :offset         Offset into results returned.
-    ")
-
-  (activity-summary
-    [client date]
-    [client start-date end-date]
-    "Get daily summaries of activity information on a specific day or between a
-    range of days.
-
-    Args (all optional):
-    :date           Date in YYYY-mm-dd format.
-    :startdateymd   Date in YYYY-mm-dd format.
-    :enddateymd     Date in YYYY-mm-dd format.
-    ")
-
-  (activity-data
-    [client start-date end-date]
-    "Gets detailed time-series activity data.
-
-    Args:
-    :startdate      Time in unix epoch seconds.
-    :enddate        Time in unix epoch seconds.
-    ")
-
-  (sleep-summary
-    [client start-date end-date]
-    "Get sleep summary data.
-
-    Args:
-    :startdate      Time in unix epoch seconds.
-    :enddate        Time in unix epoch seconds.
-    ")
-
-  (sleep-data
-    [client last-update]
-    [client start-date end-date]
-    "Get detailed sleep measurements.
-
-    Args (either from/to or lastupdate required):
-    :startdateymd   Date in YYYY-mm-dd format.
-    :enddateymd     Date in YYYY-mm-dd format.
-    :lastupdate     Date in YYYY-mm-dd format.
-    "))
-
-
-
-; ## Constants & Enumerations
-
 (def default-oauth-url
   "https://oauth.withings.com/account")
 
@@ -141,6 +73,49 @@
    1 :light
    2 :deep
    3 :REM})
+
+
+
+;; ## API Protocol
+
+(defprotocol Client
+  "Protocol for reading data from the Withings API."
+
+  (user-info
+    [client]
+    "Retrieve information about the authenticated user.")
+
+  (body-measurements
+    [client opts]
+    "Get body measurements. Additional options may be applied to filter the
+    results:
+
+    `:after`          Only return results following this datetime.
+    `:before`         Only return results prior to this datetime.
+    `:updated-since`  Return results updated after this datetime.
+    `:type`           Measurement type keyword. See `measurement-types`.
+    `:category`       Measurement category keyword. See `measurement-categories`.
+    `:limit`          Limit the number of results returned.
+    `:offset`         Offset into results returned.")
+
+  (activity-summary
+    [client date]
+    [client start-date end-date]
+    "Get daily summaries of activity information on a specific day or between a
+    range of days. Times should be provided as date-times.")
+
+  (activity-data
+    [client after before]
+    "Gets detailed time-series activity data.")
+
+  (sleep-summary
+    [client start-date end-date]
+    "Get sleep summary data.")
+
+  (sleep-data
+    [client updated-since]
+    [client start-date end-date]
+    "Get detailed sleep measurements."))
 
 
 
@@ -310,10 +285,10 @@
 
 
   (activity-summary
-    [this from-date to-date]
+    [this start-date end-date]
     (->>
-      {:startdateymd from-date
-       :enddateymd to-date}
+      {:startdateymd start-date
+       :enddateymd end-date}
       (api-request this "v2/measure" "getactivity")
       :activities
       (mapv convert-activity-summary)))
@@ -321,33 +296,33 @@
 
   ; FIXME: untested, need to sign up for API.
   (activity-data
-    [this start-date end-date]
+    [this after before]
     (api-request this "v2/measure" "getintradayactivity"
-                 {:startdate start-date
-                  :enddate end-date}))
+                 {:startdate after
+                  :enddate before}))
 
 
   (sleep-summary
-    [this from-date to-date]
+    [this start-date end-date]
     (-> (api-request this "v2/sleep" "getsummary"
-                     {:startdateymd from-date
-                      :enddateymd to-date})
+                     {:startdateymd start-date
+                      :enddateymd end-date})
         (update-in [:series] (partial mapv convert-sleep-summary))))
 
 
   (sleep-data
-    [this last-update]
+    [this updated-since]
     (-> (api-request this "v2/sleep" "get"
-                     {:lastupdate last-update})
+                     {:lastupdate updated-since})
         (update-in [:model] device-models)
         (update-in [:series] (partial mapv convert-sleep-data))))
 
 
   (sleep-data
-    [this from-inst to-inst]
+    [this start-date end-date]
     (-> (api-request this "v2/sleep" "get"
-                     {:startdate from-inst
-                      :enddate to-inst})
+                     {:startdate start-date
+                      :enddate end-date})
         (update-in [:model] device-models)
         (update-in [:series] (partial mapv convert-sleep-data)))))
 
