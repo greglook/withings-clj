@@ -279,16 +279,27 @@
          (mapv convert-user-info)))
 
 
-  ; :startdate      Time in unix epoch seconds.
-  ; :enddate        Time in unix epoch seconds.
-  ; :lastupdate     Time in unix epoch seconds.
-  ; :meastype       Measurement type (keyword -> code)
-  ; :category       1 for real measurements, 2 for user objectives
-  ; :limit          Restrict results returned.
-  ; :offset         Offset into results returned.
   (body-measurements
     [this opts]
-    (api-request this "measure" "getmeas" opts))
+    {:pre [(not (and (or (:after opts) (:before opts)) (:updated-since opts)))]}
+    (let [query (cond-> (select-keys opts [:limit :offset])
+                  (:after opts)
+                    (assoc :startdate (coerce-time/to-epoch (:after opts)))
+                  (:before opts)
+                    (assoc :enddate (coerce-time/to-epoch (:before opts)))
+                  (:updated-since opts)
+                    (assoc :lastupdate (coerce-time/to-epoch (:updated-since opts)))
+                  (:type opts)
+                    (assoc :meastype (some (fn [[code [kw _]]]
+                                             (when (= kw (:type opts))
+                                               code))
+                                           measurement-types))
+                  (:category opts)
+                    (assoc :category (some (fn [[code kw]]
+                                             (when (= kw (:category opts))
+                                               code))
+                                           measurement-categories)))]
+      (api-request this "measure" "getmeas" query)))
 
 
   (activity-summary
