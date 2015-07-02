@@ -14,6 +14,12 @@
 
 
 (puget.data/extend-tagged-value
+  org.joda.time.DateTime
+  'inst
+  (partial format-time/unparse (format-time/formatters :date-time)))
+
+
+(puget.data/extend-tagged-value
   meajure.core.UnitValue
   'meajure/unit
   #(->> (:units %)
