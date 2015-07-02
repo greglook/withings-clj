@@ -8,7 +8,6 @@
       [coerce :as coerce-time]
       [core :as time]
       [format :as format-time])
-    [clojure.tools.logging :as log]
     [meajure.core :as meajure]
     [oauth.client :as oauth]))
 
