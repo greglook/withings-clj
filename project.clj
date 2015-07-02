@@ -1,4 +1,4 @@
-(defproject mvxcvi/withings-clj "0.1.0-SNAPSHOT"
+(defproject mvxcvi/withings-clj "0.3.0"
   :description "A Clojure client for the Withings API."
   :url "https://github.com/greglook/withings-clj"
   :license {:name "Public Domain"
