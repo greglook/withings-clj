@@ -153,6 +153,23 @@
     :gender    [genders]))
 
 
+(defn- convert-body-measurement
+  [measure]
+  (let [amount (BigDecimal. (BigInteger/valueOf (:value measure)) (- (:unit measure)))]
+    (if-let [[kw unit] (measurement-types (:type measure))]
+      (array-map :type kw :value (meajure/make-unit amount unit 1))
+      (array-map :type (:type measure) :value amount))))
+
+
+(defn- convert-measurement-groups
+  [tz group]
+  (update-fields group
+    :attrib   [{0 :certain, 1 :ambiguous, 2 :manual, 3 :creation}]
+    :date     [epoch->inst tz]
+    :category [measurement-categories]
+    :measures [(partial mapv convert-body-measurement)]))
+
+
 (defn- convert-activity-summary
   [data]
   (update-fields data
@@ -247,7 +264,7 @@
                 :GET url query)]
     (let [response (http/get url
                      {:query-params (merge query oauth)
-                      :debug true
+                      ;:debug true
                       :as :json})]
       (if (= 200 (:status response))
         (let [result (update-in (:body response)
@@ -299,7 +316,9 @@
                                              (when (= kw (:category opts))
                                                code))
                                            measurement-categories)))]
-      (api-request this "measure" "getmeas" query)))
+      (let [data (api-request this "measure" "getmeas" query)
+            tz (time/time-zone-for-id (:timezone data))]
+        (update-in data [:measuregrps] (partial mapv (partial convert-measurement-groups tz))))))
 
 
   (activity-summary
