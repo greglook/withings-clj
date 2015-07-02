@@ -1,7 +1,8 @@
 withings-clj
 ============
 
-<!-- TODO: badges -->
+[![Dependency Status](https://www.versioneye.com/user/projects/5594d18d62383900150001e8/badge.svg?style=flat)](https://www.versioneye.com/clojure/mvxcvi:withings-clj)
+[![API codox](http://b.repl.ca/v1/doc-API-blue.png)](https://greglook.github.io/withings-clj/api/mvxcvi.withings.html)
 
 This provides a Clojure client for the
 [Withings](https://healthmate.withings.com/) API.
